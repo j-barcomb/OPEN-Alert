@@ -175,15 +175,6 @@ set these automatically.
 
 ---
 
-## Next Steps
-
-Once you're ready to add a GUI:
-1. Add a **WPF** project to the solution
-2. Reference `IpawsAlert.Core`
-3. Bind `CapAlertBuilder` / `CapValidator` / `IpawsClient` to your ViewModels
-4. Suggested screens: Alert Composer, Validation Summary, Submission History
-
----
 
 ## References
 
