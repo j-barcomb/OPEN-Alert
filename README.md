@@ -1,6 +1,6 @@
 # IpawsAlert.Core
 
-A C# .NET 8 class library for building, validating, and submitting
+A C# .NET 10 class library for building, validating, and submitting
 **CAP v1.2** (Common Alerting Protocol) messages to the **IPAWS-OPEN** gateway.
 
 Supports all four major IPAWS dissemination channels:
