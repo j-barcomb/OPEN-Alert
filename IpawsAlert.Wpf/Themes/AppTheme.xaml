@@ -104,6 +104,12 @@
 
     <!-- ─── TextBox ─────────────────────────────────────────────────── -->
     <Style TargetType="TextBox">
+        <Style.Resources>
+            <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="{StaticResource Col.Text.Primary}"/>
+            <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}"     Color="{StaticResource Col.Bg.Input}"/>
+            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"  Color="{StaticResource Col.Accent.Blue}"/>
+            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="{StaticResource Col.Text.Primary}"/>
+        </Style.Resources>
         <Setter Property="Background"       Value="{StaticResource Brush.Bg.Input}"/>
         <Setter Property="Foreground"       Value="{StaticResource Brush.Text.Primary}"/>
         <Setter Property="BorderBrush"      Value="{StaticResource Brush.Border.Default}"/>
