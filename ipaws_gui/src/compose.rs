@@ -276,7 +276,8 @@ pub fn show(ui: &mut Ui, state: &mut ComposeState, sender: &str, is_sending: boo
 
             section(ui, "EVENT INFORMATION", |ui| {
                 ui.label(lbl("Event Type"));
-                combo(ui, "event", &state.event_type, |ui| {
+                let event_display = state.event_type.clone();
+                combo(ui, "event", &event_display, |ui| {
                     for &e in COMMON_EVENT_TYPES { ui.selectable_value(&mut state.event_type, e.to_string(), e); }
                 });
                 if state.event_type.ends_with('\u{2026}') { ui.text_edit_singleline(&mut state.custom_event); }
