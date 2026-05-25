@@ -1,199 +1,191 @@
-The RUST branch will be a full rewrite of the program from C# to Rust.  I currently don't know much Rust but hopefully this project will change that.   
+# IpawsAlert — Rust Rewrite
 
-I am also going to start trying to implement the additional language requirements before the 2028 deadline.  
-
-
-
-
-#### I will need to rewrite the project structure and at this point I have nothing solid.  
-
-
-# IpawsAlert.Core
-
-
-
-A C# .NET 10 class library for building, validating, and submitting
-**CAP v1.2** (Common Alerting Protocol) messages to the **IPAWS-OPEN** gateway.
-
-Supports all four major IPAWS dissemination channels:
-- **WEA** — Wireless Emergency Alerts (cell broadcast)
-- **EAS** — Emergency Alert System (broadcast TV/radio)
-- **NWEM** — National Weather Emergency Messages (NOAA Weather Radio)
-- **IPAWS-OPEN** — CAP over HTTPS with mutual TLS
+A complete rewrite of the C#/.NET WPF IPAWS Alert Console in **Rust**,
+using [egui](https://github.com/emilk/egui) / [eframe](https://github.com/emilk/egui/tree/master/crates/eframe)
+for the GUI. Ships as a single native binary with no runtime dependencies.
 
 ---
 
-## Project Structure
+## Project Layout
 
 ```
-IpawsAlert.Core/
-├── Models/
-│   ├── CapAlert.cs           # Root CAP v1.2 alert object
-│   ├── CapEnums.cs           # Status, MsgType, Severity, Urgency, Certainty, etc.
-│   ├── AlertInfo.cs          # CAP <info> block
-│   ├── AlertArea.cs          # CAP <area> block (SAME codes, polygons, circles)
-│   └── AlertResource.cs      # Optional CAP <resource> attachments
-├── Builders/
-│   ├── CapAlertBuilder.cs    # Fluent builders for CapAlert, AlertInfo, AlertArea
-│   └── CapXmlSerializer.cs   # Bidirectional CAP v1.2 XML serialization
-├── Channels/
-│   └── ChannelConfigs.cs     # WeaChannelConfig, EasChannelConfig,
-│                             # NwemChannelConfig, IpawsOpenConfig
-├── Client/
-│   ├── IpawsClient.cs        # mTLS HTTP client — POST CAP XML to IPAWS-OPEN
-│   └── IpawsResponse.cs      # Typed server response model
-└── Validation/
-    ├── CapValidator.cs        # Schema + IPAWS-OPEN + channel-specific validation
-    └── ValidationResult.cs   # Findings collection (errors + warnings)
+IpawsAlert-Rust/
+├── Cargo.toml                  Workspace root
+├── ipaws_core/                 Core library crate (no GUI)
+│   └── src/
+│       ├── lib.rs
+│       ├── models.rs           CapAlert, AlertInfo, AlertArea, all CAP enums
+│       ├── builder.rs          Fluent builder API
+│       ├── xml.rs              CAP v1.2 XML serializer
+│       ├── validator.rs        Schema + IPAWS + channel validation rules
+│       ├── channels.rs         IpawsConfig, endpoint URL constants
+│       └── client.rs           mTLS HTTP client (reqwest + native-tls)
+└── ipaws_gui/                  Desktop GUI crate
+    └── src/
+        ├── main.rs             Entry point
+        ├── app.rs              App struct, tab routing, background send thread
+        ├── theme.rs            Dark colour palette + egui Visuals setup
+        ├── compose.rs          Compose Alert tab
+        ├── history.rs          Submission History tab
+        ├── settings_tab.rs     Settings tab
+        └── settings_store.rs   JSON persistence (~/.config/IpawsAlert/)
 ```
 
 ---
 
-## Quick Start
+## Prerequisites
 
-### 1. Build a CAP Alert
+| Platform | Requirements |
+|----------|-------------|
+| **Windows** | Rust 1.75+, Visual Studio Build Tools (MSVC linker) |
+| **Linux**   | Rust 1.75+, `libssl-dev pkg-config libgtk-3-dev` |
+| **macOS**   | Rust 1.75+, Xcode Command Line Tools |
 
-```csharp
-var alert = new CapAlertBuilder()
-    .WithSender("alerts@myagency.gov")
-    .WithStatus(CapStatus.Test)           // Change to CapStatus.Actual for live alerts
-    .WithMsgType(CapMsgType.Alert)
-    .AddInfo(info => info
-        .WithCategory(CapCategory.Met)
-        .WithEvent("Tornado Warning")
-        .AddResponseType(CapResponseType.Shelter)
-        .WithUrgency(CapUrgency.Immediate)
-        .WithSeverity(CapSeverity.Extreme)
-        .WithCertainty(CapCertainty.Observed)
-        .WithSenderName("My County Emergency Management")
-        .WithHeadline("Tornado Warning for Example County until 6:00 PM")
-        .WithDescription("A tornado has been confirmed on the ground...")
-        .WithInstruction("Take shelter in a sturdy building immediately.")
-        .WithExpiry(DateTimeOffset.UtcNow.AddHours(1))
-        .AddSameCode("039049")            // FIPS 6-digit code for your county
-        .AddWeaRouting(
-            shortText: "Tornado Warning this area until 6PM. Take shelter now! Local EMA",
-            longText:  "Tornado Warning for Example County until 6:00 PM. A tornado is on " +
-                       "the ground moving northeast. Take shelter immediately."
+Install Rust: https://rustup.rs
+
+---
+
+## Building
+
+```bash
+# Debug build
+cargo build
+
+# Optimised release binary (stripped, LTO)
+cargo build --release
+
+# Run directly
+cargo run -p ipaws_gui
+```
+
+## Testing
+
+The core library ships with a comprehensive test suite covering the CAP XML
+serializer, IPAWS validator, fluent builder, and response-body parsers:
+
+```bash
+cargo test -p ipaws_core
+```
+
+Test coverage:
+- **14 serializer tests** — XML prolog, CAP 1.2 namespace, element ordering,
+  XML escaping, WEA/EAS routing, SAME geocode rendering, character truncation,
+  multilingual info blocks.
+- **17 validator tests** — every CAP/IPAWS/WEA/EAS/NWEM error code
+  (CAP001–CAP014, IPAWS001, WEA001–WEA005, EAS001, NWEM001).
+- **7 builder tests** — UUID generation, code accumulation, references format,
+  area auto-creation, channel routing.
+- **8 client unit tests** — server-ID extraction from response XML,
+  error-body parsing, edge cases (empty body, malformed XML, long excerpts).
+
+All tests run without network access.
+
+Release binary locations:
+- **Windows**: `target/release/ipaws_alert.exe`
+- **Linux / macOS**: `target/release/ipaws_alert`
+
+---
+
+## Library Quick Start
+
+```rust
+use ipaws_core::*;
+
+let alert = CapAlertBuilder::new()
+    .with_sender("alerts@myagency.gov")
+    .with_status(CapStatus::Test)
+    .with_msg_type(CapMsgType::Alert)
+    .add_info(|info| info
+        .with_event("Tornado Warning")
+        .with_urgency(CapUrgency::Immediate)
+        .with_severity(CapSeverity::Extreme)
+        .with_certainty(CapCertainty::Observed)
+        .with_headline("Tornado Warning until 6:00 PM CDT")
+        .with_description("A tornado has been confirmed on the ground near Example County.")
+        .with_instruction("Take shelter immediately in a sturdy interior room.")
+        .add_wea_routing(
+            Some("Tornado Warning until 6PM. Shelter now!"),
+            Some("Tornado Warning for Example County until 6:00 PM CDT."),
         )
-        .AddEasRouting()
+        .add_eas_routing()
+        .add_area(|area| area
+            .with_description("Example County, OH")
+            .add_same_code("039049")
+        )
     )
-    .Build();
-```
+    .build();
 
-### 2. Validate
+// Validate
+let result = CapValidator::validate(&alert);
+if !result.is_valid() {
+    eprintln!("{}", result.summary());
+    std::process::exit(1);
+}
 
-```csharp
-var result = CapValidator.Validate(alert);
+// Serialize to CAP XML
+let xml = ipaws_core::serialize(&alert, true);
+println!("{xml}");
 
-foreach (var finding in result.Findings)
-    Console.WriteLine($"[{finding.Severity}] {finding.Code}: {finding.Message}");
-
-result.ThrowIfInvalid();  // Throws if any errors are present
-```
-
-### 3. Serialize to CAP XML
-
-```csharp
-string xml = CapXmlSerializer.Serialize(alert, indent: true);
-```
-
-### 4. Submit to IPAWS-OPEN
-
-```csharp
-var config = new IpawsOpenConfig
-{
-    Endpoint            = IpawsOpenConfig.TestEndpoint,  // Use ProductionEndpoint for live
-    CertificatePath     = @"C:\certs\my-fema-cert.p12",
-    CertificatePassword = Environment.GetEnvironmentVariable("IPAWS_CERT_PASS"),
-    CogId               = "YOUR-COG-ID",
+// Submit to IPAWS-OPEN
+let config = IpawsConfig {
+    cog_id:            "YOUR-COG-ID".into(),
+    sender:            "alerts@myagency.gov".into(),
+    use_test_endpoint: true,
+    use_file_cert:     true,
+    cert_path:         "certs/ipaws-test.p12".into(),
+    cert_password:     std::env::var("IPAWS_CERT_PASS").unwrap_or_default(),
+    ..Default::default()
 };
 
-using var client = new IpawsClient(config);
-var response = await client.SubmitAsync(alert);
+let client   = IpawsClient::new(config);
+let response = client.submit(&alert);
 
-if (response.IsSuccess)
-    Console.WriteLine($"Sent! Server ID: {response.ServerMessageId}");
-else
-    Console.WriteLine($"Failed: {string.Join(", ", response.Errors)}");
+if response.is_success {
+    println!("Accepted! Server ID: {}", response.server_message_id.unwrap_or_default());
+} else {
+    eprintln!("Failed: {}", response.errors.join(", "));
+}
 ```
 
 ---
 
-## Certificate Setup
+## Settings
 
-FEMA issues a **PKCS#12 (.p12 / .pfx)** client certificate for each COG.
+Persisted to:
+- **Windows**: `%APPDATA%\IpawsAlert\settings.json`
+- **Linux / macOS**: `~/.config/IpawsAlert/settings.json`
 
-**Option A — File-based (development/testing):**
-```csharp
-config.CertificatePath     = @"C:\certs\ipaws-test.p12";
-config.CertificatePassword = "password";
-```
+> ⚠️ The certificate **password** is never written to disk.
+> It must be re-entered each session. Use an environment variable
+> or secrets manager and supply it at launch.
 
-**Option B — Windows Certificate Store (recommended for production):**
-1. Import the .p12 into the Windows certificate store:
-   `certlm.msc` → Personal → Import
-2. Note the certificate thumbprint (SHA-1 hex, no spaces)
-3. Configure:
-```csharp
-config.CertThumbprint    = "A1B2C3D4E5F6...";  // From cert properties
-config.CertStoreLocation = StoreLocation.LocalMachine;
-```
+---
 
-> ⚠️ **Never hardcode the certificate password in source code.**
-> Use environment variables, Windows DPAPI, or a secrets manager.
+## Key Differences from the C# Version
+
+| Aspect | C# / WPF | Rust / egui |
+|---|---|---|
+| GUI paradigm | MVVM / retained-mode XAML | Immediate-mode (egui) |
+| Distribution | Requires .NET runtime | Single native binary |
+| Certificate API | `X509CertificateLoader` | reqwest + native-tls |
+| Settings | `System.Text.Json` | serde\_json |
+| Async | `Task` / `async-await` | `std::thread` + `Mutex` |
+| Dark theme | System colour key overrides | `egui::Visuals` |
 
 ---
 
 ## IPAWS-OPEN Endpoints
 
 | Environment | URL |
-|-------------|-----|
-| **Test (JITC)** | `https://tdl.integration.aws.fema.net/cap/SubmitCAPMessage` |
-| **Production** | `https://www.fema.gov/cap/COGProfile.do` |
-
-Use `IpawsOpenConfig.TestEndpoint` and `IpawsOpenConfig.ProductionEndpoint` constants.
-
-There is currently discussion of FEMA moving to AWS and the URLs may change at that point.  (Hopefully not, but maybe)
+|---|---|
+| Test (JITC) | `https://tdl.integration.aws.fema.net/cap/SubmitCAPMessage` |
+| Production | `https://www.fema.gov/cap/COGProfile.do` |
 
 ---
-
-## Channel Routing Parameters
-
-IPAWS-OPEN uses CAP `<parameter>` elements in the `<info>` block to route
-messages to specific dissemination channels:
-
-| Channel | Parameter Name | Value |
-|---------|---------------|-------|
-| WEA (legacy 90-char) | `WEAHandling` | `Broadcast` |
-| WEA short text | `CMAMtext` | ≤ 90 characters |
-| WEA long text (3.0) | `CMAMlongtext` | ≤ 360 characters |
-| EAS | `EASHandling` | `Broadcast` |
-| NWEM | `NWEMHandling` | `Broadcast` |
-| NWS VTEC | `VTEC` | VTEC string |
-
-The builder methods `AddWeaRouting()`, `AddEasRouting()`, `AddNwemRouting()`
-set these automatically.
-
----
-
-## Validation Error Codes
-
-| Code | Description |
-|------|-------------|
-| `CAP001–CAP027` | Core CAP v1.2 schema violations |
-| `IPAWS001` | Missing `IPAWSv1.0` code |
-| `WEA001–WEA005` | WEA channel rule violations |
-| `EAS001–EAS002` | EAS channel rule violations |
-| `NWEM001–NWEM002` | NWEM channel rule violations |
-
----
-
 
 ## References
 
-- [CAP v1.2 Specification (OASIS)](http://docs.oasis-open.org/emergency/cap/v1.2/CAP-v1.2-os.html)
-- [IPAWS Developer Resources (FEMA)](https://www.fema.gov/emergency-managers/practitioners/integrated-public-alert-warning-system/developers)
-- [WEA Technical Standard (ATIS)](https://www.atis.org/01_standards/standards_overview/wea.aspx)
-- [EAS SAME Codes (NWS)](https://www.nws.noaa.gov/directives/sym/pd01017012curr.pdf)
-- [IPAWS COG Program](https://www.fema.gov/emergency-managers/practitioners/integrated-public-alert-warning-system/authorities-training-technical-support/collaborative-operating-groups)
+- [CAP v1.2 Specification — OASIS](http://docs.oasis-open.org/emergency/cap/v1.2/CAP-v1.2-os.html)
+- [IPAWS Developer Resources — FEMA](https://www.fema.gov/emergency-managers/practitioners/integrated-public-alert-warning-system/developers)
+- [egui documentation](https://docs.rs/egui)
+- [eframe documentation](https://docs.rs/eframe)
