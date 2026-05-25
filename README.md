@@ -155,9 +155,7 @@ Persisted to:
 - **Windows**: `%APPDATA%\IpawsAlert\settings.json`
 - **Linux / macOS**: `~/.config/IpawsAlert/settings.json`
 
-> ⚠️ The certificate **password** is never written to disk.
-> It must be re-entered each session. Use an environment variable
-> or secrets manager and supply it at launch.
+> The certificate **password** is never "saved" this is on purpose, it serves as an extra "check".
 
 ---
 
