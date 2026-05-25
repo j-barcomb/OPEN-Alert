@@ -1,4 +1,16 @@
+The RUST branch will be a full rewrite of the program from C# to Rust.  I currently don't know much Rust but hopefully this project will change that.   
+
+I am also going to start trying to implement the additional language requirements before the 2028 deadline.  
+
+
+
+
+#### I will need to rewrite the project structure and at this point I have nothing solid.  
+
+
 # IpawsAlert.Core
+
+
 
 A C# .NET 10 class library for building, validating, and submitting
 **CAP v1.2** (Common Alerting Protocol) messages to the **IPAWS-OPEN** gateway.
@@ -141,6 +153,8 @@ config.CertStoreLocation = StoreLocation.LocalMachine;
 | **Production** | `https://www.fema.gov/cap/COGProfile.do` |
 
 Use `IpawsOpenConfig.TestEndpoint` and `IpawsOpenConfig.ProductionEndpoint` constants.
+
+There is currently discussion of FEMA moving to AWS and the URLs may change at that point.  (Hopefully not, but maybe)
 
 ---
 
