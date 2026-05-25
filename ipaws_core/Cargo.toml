@@ -1,0 +1,19 @@
+[package]
+name    = "ipaws_core"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["client"]
+client  = ["dep:reqwest"]
+
+[dependencies]
+chrono    = { version = "0.4", features = ["serde"] }
+serde     = { version = "1",   features = ["derive"] }
+uuid      = { version = "1",   features = ["v4"] }
+thiserror = "1"
+reqwest   = { version = "0.12", default-features = false, features = ["native-tls", "blocking"], optional = true }
+
+# Windows Certificate Store support (thumbprint lookup → PKCS#12 export).
+[target.'cfg(windows)'.dependencies]
+schannel = "0.1"
